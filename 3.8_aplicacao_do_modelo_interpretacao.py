@@ -1,50 +1,53 @@
+import os
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.preprocessing import StandardScaler
 from joblib import load
 
-# 📌 1️⃣ Carregar o modelo treinado e os dados para previsão
-print("📥 Carregando modelo treinado...")
+# ✨ Carregar o modelo treinado e o scaler
+print("\U0001F4E5 Carregando modelo treinado...")
 modelo = load("modelo_random_forest.joblib")  # Certifique-se de que o modelo treinado está salvo corretamente
 scaler = load("scaler.joblib")  # Carregar o normalizador usado no treinamento
 
-print("📂 Carregando `07_aplicacao_do_modelo_interpretacao.csv`...")
-df_novo = pd.read_csv("07_aplicacao_do_modelo_interpretacao.csv", delimiter=";", encoding="utf-8")
-print(f"✅ Base de previsão carregada com {df_novo.shape[0]} registros e {df_novo.shape[1]} colunas.")
+# ✨ Criar subconjunto de dados diretamente da base original, sem depender de um CSV externo
+print("\U0001F4C2 Criando subconjunto de dados para previsão...")
+df_base = pd.read_csv("base_fusionada.csv", delimiter=";", encoding="utf-8")
 
-# 📌 2️⃣ Selecionar as colunas de entrada (features)
 features = [
     "PRECIPITAÇÃO TOTAL, HORÁRIO (mm)",
     "TEMPERATURA DO AR - BULBO SECO, HORARIA (°C)",
     "UMIDADE RELATIVA DO AR, HORARIA (%)",
-    "VENTO, VELOCIDADE HORARIA (m/s)"
+    "VENTO, VELOCIDADE HORARIA (m/s)",
+    "valor_unitario"  # Adicionando a coluna necessária
 ]
 
-# 📌 3️⃣ Removendo valores ausentes antes da normalização
-print("✅ Removendo valores ausentes...")
-df_novo.dropna(subset=features, inplace=True)
-print(f"✅ Após remoção de valores ausentes, restam {df_novo.shape[0]} registros.")
+df_novo = df_base[df_base["qtd_atividade"] > 0].sample(n=100, random_state=42)
 
-# 📌 4️⃣ Aplicar a normalização
-print("🔄 Normalizando os dados...")
-X_novo = scaler.transform(df_novo[features])
+# ✨ Remover valores ausentes antes da normalização
+df_novo.dropna(subset=["PRECIPITAÇÃO TOTAL, HORÁRIO (mm)", "valor_unitario"], inplace=True)
+print(f"✅ Subconjunto criado com {df_novo.shape[0]} registros.")
 
-# 📌 5️⃣ Realizar previsões
-print("🔮 Gerando previsões...")
+# ✨ Normalizar os dados
+X_novo = scaler.transform(df_novo[[
+    "PRECIPITAÇÃO TOTAL, HORÁRIO (mm)",
+    "TEMPERATURA DO AR - BULBO SECO, HORARIA (°C)",
+    "UMIDADE RELATIVA DO AR, HORARIA (%)",
+    "VENTO, VELOCIDADE HORARIA (m/s)"
+]])
+
+# ✨ Realizar previsões
 df_novo["Previsao_Ocorrencia"] = modelo.predict(X_novo)
 
-# 📌 6️⃣ Analisando impactos financeiros (estimativa de custos)
 df_novo["Custo_Estimado"] = df_novo["Previsao_Ocorrencia"] * df_novo["valor_unitario"]
 
-# 📌 7️⃣ Salvar previsões em CSV
-print("💾 Salvando resultados em `07_previsoes_resultados.csv`...")
-df_novo.to_csv("07_previsoes_resultados.csv", index=False, sep=";")
+# ✨ Salvar previsões em CSV
+nome_arquivo_resultado = "3.8_previsoes_resultados.csv"
+print(f"\U0001F4BE Salvando resultados em `{nome_arquivo_resultado}`...")
+df_novo.to_csv(nome_arquivo_resultado, index=False, sep=";")
 print(f"✅ Previsões salvas com {df_novo.shape[0]} registros.")
 
-# 📌 8️⃣ Gerar gráficos de análise
-print("📈 Gerando gráficos de análise...")
+# ✨ Gerar gráficos
 plt.figure(figsize=(10, 5))
 sns.countplot(x="Previsao_Ocorrencia", data=df_novo, palette="viridis")
 plt.title("Distribuição das Previsões de Ocorrências")
@@ -53,7 +56,7 @@ plt.ylabel("Contagem")
 plt.show()
 
 plt.figure(figsize=(10, 5))
-sns.histplot(df_novo["Custo_Estimado"], bins=50, kde=True, color="blue")
+sns.histplot(df_novo["Custo_Estimado"].dropna(), bins=50, kde=True, color="blue")
 plt.title("Distribuição dos Custos Estimados")
 plt.xlabel("Custo Estimado (R$)")
 plt.ylabel("Frequência")
